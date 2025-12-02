@@ -193,6 +193,79 @@
       position: relative;
     }
 
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      text-align: center;
+      max-width: 500px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      animation: popIn 0.3s ease;
+    }
+
+    .modal-icon {
+      font-size: 100px;
+      margin-bottom: 20px;
+      animation: shake 0.5s ease;
+    }
+
+    .modal-title {
+      font-size: 36px;
+      font-weight: bold;
+      color: #e74c3c;
+      margin-bottom: 16px;
+    }
+
+    .modal-message {
+      font-size: 20px;
+      color: #555;
+      margin-bottom: 24px;
+    }
+
+    .modal-button {
+      background: #e74c3c;
+      color: white;
+      border: none;
+      padding: 16px 40px;
+      font-size: 22px;
+      font-weight: bold;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .modal-button:hover {
+      background: #c0392b;
+      transform: translateY(-2px);
+    }
+
+    @keyframes popIn {
+      0% {
+        transform: scale(0.5);
+        opacity: 0;
+      }
+      50% {
+        transform: scale(1.1);
+      }
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
     .result-icon {
       font-size: 120px;
       margin-bottom: 24px;
@@ -363,6 +436,19 @@
      Better luck next time!
     </div><button class="play-again-button" id="playAgainButton">Play Again</button>
    </div>
+   <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-content">
+     <div class="modal-icon">
+      😅
+     </div>
+     <div class="modal-title">
+      Oops! Try Again!
+     </div>
+     <div class="modal-message">
+      Some items were sorted incorrectly. Give it another shot!
+     </div><button class="modal-button" id="modalButton">Try Again</button>
+    </div>
+   </div>
   </div>
   <script>
     const defaultConfig = {
@@ -402,6 +488,71 @@
       currentItems: [],
       placements: {}
     };
+
+    // Sound generation using Web Audio API
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      if (type === 'success') {
+        // Happy ascending notes
+        oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
+        oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1); // E5
+        oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.2); // G5
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.4);
+      } else if (type === 'error') {
+        // Descending error sound
+        oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+        oscillator.frequency.setValueAtTime(200, audioContext.currentTime + 0.2);
+        oscillator.type = 'sawtooth';
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.3);
+      } else if (type === 'bomb') {
+        // Explosion sound
+        oscillator.frequency.setValueAtTime(100, audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(50, audioContext.currentTime + 0.5);
+        oscillator.type = 'sawtooth';
+        gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.5);
+      } else if (type === 'clap') {
+        // Clapping sound
+        const bufferSize = audioContext.sampleRate * 0.1;
+        const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        const noise = audioContext.createBufferSource();
+        noise.buffer = buffer;
+        const noiseGain = audioContext.createGain();
+        noise.connect(noiseGain);
+        noiseGain.connect(audioContext.destination);
+        noiseGain.gain.setValueAtTime(0.3, audioContext.currentTime);
+        noiseGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+        noise.start(audioContext.currentTime);
+        noise.stop(audioContext.currentTime + 0.1);
+      } else if (type === 'place') {
+        // Quick bloop sound for placing items
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.1);
+      }
+    }
 
     function shuffleArray(array) {
       const shuffled = [...array];
@@ -517,8 +668,10 @@
         binItem.textContent = itemEmoji;
         binItems.appendChild(binItem);
 
+        playSound('place');
+
         if (Object.keys(gameState.placements).length === 5) {
-          checkRound();
+          setTimeout(() => checkRound(), 300);
         }
       });
     });
@@ -528,16 +681,38 @@
         p => p.correct === p.placed
       ).length;
 
+      const allCorrect = correctPlacements === 5;
+
+      if (!allCorrect) {
+        // Show try again modal
+        playSound('error');
+        showModal();
+        return;
+      }
+
+      // All correct in this round
       gameState.score += correctPlacements * 20;
+      playSound('success');
 
       if (gameState.currentRound < 4) {
         setTimeout(() => loadRound(), 500);
       } else {
-        const allCorrect = Object.values(gameState.placements).every(
-          p => p.correct === p.placed
-        );
-        endGame(allCorrect);
+        // All 4 rounds completed with all correct
+        endGame(true);
       }
+    }
+
+    function showModal() {
+      document.getElementById('modalOverlay').style.display = 'flex';
+    }
+
+    function hideModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
+      // Reset the current round
+      document.querySelectorAll('.bin-items').forEach(bin => bin.innerHTML = '');
+      gameState.placements = {};
+      loadRound();
+      gameState.currentRound--;
     }
 
     function endGame(success) {
@@ -551,11 +726,15 @@
       const resultMessage = document.getElementById('resultMessage');
 
       if (gameState.timeLeft <= 0) {
+        playSound('bomb');
         resultIcon.textContent = '💣';
         resultIcon.className = 'result-icon bomb-animation';
         resultTitle.textContent = 'Time\'s Up!';
         resultMessage.textContent = `You ran out of time! Score: ${gameState.score}`;
       } else if (success) {
+        playSound('clap');
+        setTimeout(() => playSound('clap'), 200);
+        setTimeout(() => playSound('clap'), 400);
         resultIcon.textContent = '👏';
         resultIcon.className = 'result-icon clap-animation';
         resultTitle.textContent = 'Perfect!';
@@ -576,6 +755,7 @@
 
     document.getElementById('startButton').addEventListener('click', startGame);
     document.getElementById('playAgainButton').addEventListener('click', startGame);
+    document.getElementById('modalButton').addEventListener('click', hideModal);
 
     async function onConfigChange(config) {
       document.getElementById('gameTitle').textContent = config.game_title || defaultConfig.game_title;
@@ -601,5 +781,5 @@
       });
     }
   </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a797cec9632f4cf',t:'MTc2NDY2NDQ5Ni4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a798446f08df4cf',t:'MTc2NDY2NDc5Ny4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
